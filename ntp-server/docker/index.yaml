@@ -1,0 +1,4 @@
+dockerfiles:
+  - path: ntp-server.dockerfile
+    image: uap-ntp-server
+    imageTag: v20230807-1106

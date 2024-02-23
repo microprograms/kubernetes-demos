@@ -1,0 +1,77 @@
+{{ if .Values.workerDeployment.replicas }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.workerDeployment.name }}
+  labels:
+    app: {{ .Values.workerDeployment.name }}
+spec:
+  replicas: {{ .Values.workerDeployment.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.workerDeployment.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.workerDeployment.name }}
+    spec:
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 10
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 10
+      containers:
+        - name: {{ .Values.workerDeployment.name }}
+          image: {{ .Values.workerDeployment.image }} # 镜像
+          imagePullPolicy: {{ .Values.workerDeployment.imagePullPolicy }}
+          ports:
+            - name: udp
+              containerPort: 123
+              protocol: UDP
+          securityContext:
+            capabilities:
+              add:
+              - SYS_TIME
+              - SYS_NICE
+          livenessProbe:
+            exec:
+              command:
+              - chronyc
+              - tracking
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+              - chronyc
+              - tracking
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          resources:
+            limits:
+              memory: {{ .Values.workerDeployment.resources.limits.memory }}
+            requests:
+              memory: {{ div .Values.workerDeployment.resources.limits.memory 2 }}
+          env:
+            - name: CMD_CIDR
+              value: '{{ .Values.workerDeployment.env.CMD_CIDR }}'
+            - name: ALLOW_CIDR
+              value: '{{ .Values.workerDeployment.env.ALLOW_CIDR }}'
+            - name: NTP_SERVER
+              value: '{{ .Values.masterService.name }}'
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ .Values.masterDeployment.name }}
+                - {{ .Values.workerDeployment.name }}
+            topologyKey: "kubernetes.io/hostname"
+{{ end }}

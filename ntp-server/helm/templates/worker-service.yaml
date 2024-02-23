@@ -1,0 +1,14 @@
+{{ if .Values.workerDeployment.replicas }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.workerService.name }}
+spec:
+  ports:
+    - name: ntp
+      port: 123
+      targetPort: 123
+      protocol: UDP
+  selector:
+    app: {{ .Values.workerDeployment.name }}
+{{ end }}

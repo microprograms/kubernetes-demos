@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.masterDeployment.name }}
+  labels:
+    app: {{ .Values.masterDeployment.name }}
+spec:
+  replicas: 1 # 固定为单副本
+  selector:
+    matchLabels:
+      app: {{ .Values.masterDeployment.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.masterDeployment.name }}
+    spec:
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 10
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 10
+      containers:
+        - name: {{ .Values.masterDeployment.name }}
+          image: {{ .Values.masterDeployment.image }} # 镜像
+          imagePullPolicy: {{ .Values.masterDeployment.imagePullPolicy }}
+          ports:
+            - name: udp
+              containerPort: 123
+              protocol: UDP
+          securityContext:
+            capabilities:
+              add:
+              - SYS_TIME
+              - SYS_NICE
+          livenessProbe:
+            exec:
+              command:
+              - chronyc
+              - tracking
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+              - chronyc
+              - tracking
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          resources:
+            limits:
+              memory: {{ .Values.masterDeployment.resources.limits.memory }}
+            requests:
+              memory: {{ div .Values.masterDeployment.resources.limits.memory 2 }}
+          env:
+            - name: CMD_CIDR
+              value: '{{ .Values.masterDeployment.env.CMD_CIDR }}'
+            - name: ALLOW_CIDR
+              value: '{{ .Values.masterDeployment.env.ALLOW_CIDR }}'
+            - name: NTP_SERVER
+              value: '{{ .Values.masterDeployment.env.NTP_SERVER }}'
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ .Values.masterDeployment.name }}
+                - {{ .Values.workerDeployment.name }}
+            topologyKey: "kubernetes.io/hostname"

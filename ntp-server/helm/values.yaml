@@ -1,0 +1,29 @@
+masterDeployment:
+  name: ntp-server-master # 部署名
+  image: docker.iottepa.cn:32011/uap-ntp-server:v20230807-1106 # 镜像
+  env:
+    CMD_CIDR: 127/8
+    ALLOW_CIDR: 0.0.0.0/0
+    NTP_SERVER: pool.ntp.org
+  imagePullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: "256Mi"
+
+masterService:
+  name: ntp-server-master
+
+workerDeployment:
+  name: ntp-server-worker # 部署名
+  replicas: 0
+  image: docker.iottepa.cn:32011/uap-ntp-server:v20230807-1106 # 镜像
+  env:
+    CMD_CIDR: 127/8
+    ALLOW_CIDR: 0.0.0.0/0
+  imagePullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: "256Mi"
+
+workerService:
+  name: ntp-server-worker
