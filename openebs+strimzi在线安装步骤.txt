@@ -1,0 +1,210 @@
+##
+# 在线安装openebs
+##
+
+# 添加openebs的helm仓库
+helm repo add openebs https://openebs.github.io/charts
+
+# 下载openebs
+helm pull openebs/openebs --version 3.1.0
+
+# 重打包jiva存储引擎，输出形如 Successfully packaged chart and saved it to: /root/jiva-3.1.0.tgz
+tar zxvf openebs-3.1.0.tgz
+helm package openebs/charts/jiva
+
+# 安装jiva存储引擎
+helm install jiva /root/jiva-3.1.0.tgz -n openebs --create-namespace --set defaultClass.reclaimPolicy=Retain \
+    --set localpv-provisioner.localpv.basePath=/mnt/disks/openebs-localpv-provisioner --set localpv-provisioner.hostpathClass.reclaimPolicy=Retain
+
+# 修改默认的storageclass
+kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+kubectl patch storageclass openebs-jiva-csi-default -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+# 查询默认的storageclass，NAME列标记为(default)的是默认storageclass
+kubectl get storageclass
+
+##
+# 在线安装strimzi
+##
+
+# 下载strimzi-kafka-operator
+curl -O https://github.com/strimzi/strimzi-kafka-operator/releases/download/0.35.1/strimzi-kafka-operator-helm-3-chart-0.35.1.tgz
+
+# 安装strimzi-kafka-operator
+helm install strimzi strimzi-kafka-operator-helm-3-chart-0.35.1.tgz -n iottepa
+
+# 创建ssl secret
+cat << EOF > broker-listener.key
+-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEAoFGD2RQMtK2BqV529SPhBYc3S2Na3qXprEUxYtuqilA43Fhq
+Q9S72DZ/YeizLVOwFtjihWWHAKprJ0kmHBQSwwcqOd9O5jj1F7upTvfJnNP6QiWB
+0zSFkSyQy+wRvD90BV4E4k4euj+W+Uy7evmPv266R18OIRLPKdLRRx+cDTNyoBtE
+sS0QcaQYNIW0XLi+PQqkURsg9hm8fyUDyp6aImRDQd8QUFnndYRmo26kFHJ3ULY0
+RqSKhrTdxT1X8yFiItU4essWuqVjHGziWwo8L6rXEtc9YhM4hUA71h0XW5nrJ7zv
+kCbegV3hi4MvTAb/dFZFROBj5lNG+zJidizvBwIDAQABAoIBACVb2YW0jmFsLVLy
+mHX3rnBDWjdPJ9XKg/GJDkEjP1KL7zQpxlmYMU3pJTYDq/1cCyTH1cGQLy2QiPfW
+q/LPGrAn80cZKqGrlDG7oXCtfWX2X9MaOm6lRprV78gVcuyTPM4jYq/51F9CgkQG
+BYparYzGmNIY7In4gB4W6n3Qd+T7Qa6LNkBVsDY5VgIpxtxk7jOBlJ7tESI8fwOP
+hJjGraJ7JRaoZA4sbhtGxnP8ANgTaRIoE4D5+/pbrv8olXS/vTDvatZas+eV3z0b
+AiRuYCCKt7yQiGeIu7yb+yD3pKUx0Pt7UHM0igKoD7kLQc3Jhcg+0QQ4DBg31nI6
+hHmbBkECgYEA1ArpaytMZUJHdYSlRyrJixAjA8je3NlG7hB6n0E39X3ZsQhjQO3t
+jOTQkJxD8td+Tld5PhmXUWqO0WpG0uwVUEAKZGwf93bXXIGVk9WZVB0oe7vlzXys
+XrA+1BhAtPYXy9kVudAX0LPCz1da86/aYt+a0I0XEQNHk2lfTcQUyuUCgYEAwY2a
+Xlu0I0ZEbR8vQtl/cyJy0osoSK8IsbvMc69uUEX8kJXJrXsW/k7pLfPQoRPY6w82
+KWKZrbSguoF1CMKRd+0KdqA1vs60TEmsASdtV+5jX+k+VAB4obAh3Lq65iMnXbW0
+jeE7fPykBBrDEo61VeE6KSr2PhjBKdAIEp1zd3sCgYEAomXNCcA6nV7avd2ee9gA
+TdpJBvAEB9783P2P/IKFqiX94QFMiwDuq7bfKbIUtFtop/WErRQKeVeEFE0x+v7H
+ABRcITdScEP7gyTX+0ZfTTWbuNBamzt+BHM1W1lLzYyhAwW7BvmiE7xpWkVMKlCn
+kIwy1MEKRoRdgD/2tueTCSUCgYBCtQX9/UcRXTdaEIReWs2VJctDCxjgLAsoDlyB
+hnXTjrtkLWursZ+UGCg/YSeHTGrXYI+/Ja9ncbhvbwyh70TpezW++qprT5xOKpnw
+b+E8i/mN5bpIgz0QJL8W7vhZNsZrgqNuvrCc/AmfLIYM0EhpB83ewGLLtgZk3cDa
+gY95HwKBgQCdSzGNeC96uxSqlXUAFZNJFWkIeq6csQSLmOe2fLxVOv/k4gDUNo/Y
+LzgB8ayGz1gOLbhJ20Maw2J3L/0gyCaWRj6pdIBIcanDKJoiDfkXlxXJYVAGeEwG
+98Iqyu2vO+j6tZwRuhQ6gQIj0x16f1IhfvSdLmKTjpqzMiU6NiWfJw==
+-----END RSA PRIVATE KEY-----
+EOF
+
+cat << EOF > broker-listener.crt
+-----BEGIN CERTIFICATE-----
+MIIDqTCCApECFEAFORSUAQuUH2ajryXh2CGJR+6KMA0GCSqGSIb3DQEBCwUAMIGO
+MQswCQYDVQQGEwJDTjESMBAGA1UECAwJR3Vhbmdkb25nMREwDwYDVQQHDAhTaGVu
+emhlbjEPMA0GA1UECgwGV2Fud29vMQ0wCwYDVQQLDARUZWNoMRQwEgYDVQQDDAtp
+b3R0ZXBhLmNvbTEiMCAGCSqGSIb3DQEJARYTc3VwcG9ydEBpb3R0ZXBhLmNvbTAe
+Fw0yNDAxMzAwOTQ0MzhaFw0zNDAxMjcwOTQ0MzhaMIGSMQswCQYDVQQGEwJDTjES
+MBAGA1UECAwJR3Vhbmdkb25nMREwDwYDVQQHDAhTaGVuemhlbjEPMA0GA1UECgwG
+V2Fud29vMQ0wCwYDVQQLDARUZWNoMRgwFgYDVQQDDA9icm9rZXItbGlzdGVuZXIx
+IjAgBgkqhkiG9w0BCQEWE3N1cHBvcnRAaW90dGVwYS5jb20wggEiMA0GCSqGSIb3
+DQEBAQUAA4IBDwAwggEKAoIBAQCgUYPZFAy0rYGpXnb1I+EFhzdLY1repemsRTFi
+26qKUDjcWGpD1LvYNn9h6LMtU7AW2OKFZYcAqmsnSSYcFBLDByo5307mOPUXu6lO
+98mc0/pCJYHTNIWRLJDL7BG8P3QFXgTiTh66P5b5TLt6+Y+/brpHXw4hEs8p0tFH
+H5wNM3KgG0SxLRBxpBg0hbRcuL49CqRRGyD2Gbx/JQPKnpoiZENB3xBQWed1hGaj
+bqQUcndQtjRGpIqGtN3FPVfzIWIi1Th6yxa6pWMcbOJbCjwvqtcS1z1iEziFQDvW
+HRdbmesnvO+QJt6BXeGLgy9MBv90VkVE4GPmU0b7MmJ2LO8HAgMBAAEwDQYJKoZI
+hvcNAQELBQADggEBAJ9nTbIvWq1NDvnPiF83IACdggd4leu8ijQam4bv6FVZ4Z9b
+0fUMPNjkX0YQGWRnoFn3XL1kU4M1OjTAunNwCqkjlM8ZEKopJViuznUgTTmxZNGY
+WQytI1kdgM+HQYEyZgF3KJI2r+tFFQ+8oLGum4x0tNu3bjcX7ojpNe7H58LC4vrY
+TWbxhoDT7unMD2cYSCPR5er4DSDkqYDiEZCs6ssP3OkNDzs+TujnKZFE6Pta3trQ
+FrFgdY8qjBQ3Med00mGV1/fFwsG9Ec8Jq5/NGzWO/fhkdfdDi2n6xS+xzY2IAqol
+Oou8A8dnDdrLW7ks57BVNFLK4qGL72MubfbM2oM=
+-----END CERTIFICATE-----
+EOF
+
+kubectl create secret generic strimzi-broker-listener-secret -n iottepa --from-file=broker-listener.key --from-file=broker-listener.crt
+
+# 安装strimzi kafka，注意这是多行命令
+kubectl apply -n iottepa -f - <<EOF
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: strimzi
+spec:
+  kafka:
+    version: 3.4.0
+    replicas: 1
+    listeners:
+      - name: external
+        port: 9092
+        type: nodeport
+        tls: true
+        configuration:
+          brokerCertChainAndKey:
+            secretName: strimzi-broker-listener-secret
+            certificate: broker-listener.crt
+            key: broker-listener.key
+          brokers:
+            - broker: 0
+              nodePort: 31001
+              advertisedHost: 172.18.6.119
+              advertisedPort: 31001
+      - name: plain
+        port: 9095
+        type: internal
+        tls: false
+        configuration:
+          brokers:
+            - broker: 0
+              advertisedHost: kafka-headless.iottepa
+              advertisedPort: 9095
+    config:
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+      inter.broker.protocol.version: "3.4"
+    storage:
+      type: persistent-claim
+      size: 100Gi
+      deleteClaim: false
+    template:
+      pod:
+        tolerations:
+          - effect: NoExecute
+            key: node.kubernetes.io/notReady
+            operator: Exists
+            tolerationSeconds: 0
+          - effect: NoExecute
+            key: node.kubernetes.io/unreachable
+            operator: Exists
+            tolerationSeconds: 0
+          - effect: NoExecute
+            key: node.kubernetes.io/not-ready
+            operator: Exists
+            tolerationSeconds: 0
+  zookeeper:
+    replicas: 1
+    storage:
+      type: persistent-claim
+      size: 100Gi
+      deleteClaim: false
+    template:
+      pod:
+        tolerations:
+          - effect: NoExecute
+            key: node.kubernetes.io/notReady
+            operator: Exists
+            tolerationSeconds: 0
+          - effect: NoExecute
+            key: node.kubernetes.io/unreachable
+            operator: Exists
+            tolerationSeconds: 0
+          - effect: NoExecute
+            key: node.kubernetes.io/not-ready
+            operator: Exists
+            tolerationSeconds: 0
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-headless
+spec:
+  clusterIP: None
+  ports:
+  - name: tcp-ctrlplane
+    port: 9090
+    protocol: TCP
+    targetPort: 9090
+  - name: tcp-replication
+    port: 9091
+    protocol: TCP
+    targetPort: 9091
+  - name: tcp-plain
+    port: 9095
+    protocol: TCP
+    targetPort: 9095
+  selector:
+    strimzi.io/cluster: strimzi
+    strimzi.io/kind: Kafka
+    strimzi.io/name: strimzi-kafka
+  type: ClusterIP
+EOF
+
+# 恢复默认的storageclass
+kubectl patch storageclass openebs-jiva-csi-default -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+# 查询默认的storageclass，NAME列标记为(default)的是默认storageclass
+kubectl get storageclass
