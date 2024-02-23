@@ -1,0 +1,14 @@
+daemonSet:
+  name: nginx # 部署名
+  image: docker.iottepa.cn:32011/uap-nginx:1.25.0 # 镜像
+  imagePullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: "1Gi"
+
+configMap:
+  name: nginx # 配置名
+
+service:
+  name: nginx # 服务名
+  ports: []

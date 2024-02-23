@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Values.daemonSet.name }}
+  labels:
+    app: {{ .Values.daemonSet.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.daemonSet.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.daemonSet.name }}
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: {{ .Values.daemonSet.name }}
+          image: {{ .Values.daemonSet.image }} # 镜像
+          imagePullPolicy: {{ .Values.daemonSet.imagePullPolicy }}
+          resources:
+            limits:
+              memory: {{ .Values.daemonSet.resources.limits.memory }}
+            requests:
+              memory: {{ div .Values.daemonSet.resources.limits.memory 2 }}
+          volumeMounts:
+            - name: localtime
+              mountPath: /etc/localtime
+              readOnly: true
+            - name: global
+              mountPath: /etc/nginx/conf.d
+              subPath: nginx-conf-files
+              readOnly: true
+            - name: global
+              mountPath: /etc/nginx/static.d
+              subPath: nginx-static-files
+              readOnly: true
+            - name: nginx-main-config # nginx主配置
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+      volumes:
+        - name: localtime
+          hostPath:
+            path: /etc/localtime
+        - name: global
+          persistentVolumeClaim:
+            claimName: global
+        - name: nginx-main-config # nginx主配置
+          configMap:
+            name: {{ .Values.configMap.name }}
+            items:
+              - key: nginx.conf
+                path: nginx.conf

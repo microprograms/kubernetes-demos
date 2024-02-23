@@ -1,0 +1,4 @@
+dockerfiles:
+  - path: nginx.dockerfile
+    image: uap-nginx
+    imageTag: 1.25.0

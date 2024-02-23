@@ -1,0 +1,15 @@
+{{ if .Values.service.ports }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.service.name }} # 服务名
+spec:
+  type: ClusterIP
+  ports:
+    {{ range .Values.service.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+    {{ end }}
+  selector:
+    app: {{ .Values.daemonSet.name }}
+{{ end }}
