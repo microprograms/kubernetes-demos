@@ -1,0 +1,34 @@
+dockerfiles:
+  - path: jiva.dockerfile
+    image: uap-openebs-jiva
+    imageTag: 3.1.0
+  - path: m-exporter.dockerfile
+    image: uap-openebs-m-exporter
+    imageTag: 3.1.0
+  - path: jiva-operator.dockerfile
+    image: uap-openebs-jiva-operator
+    imageTag: 3.1.0
+  - path: jiva-csi.dockerfile
+    image: uap-openebs-jiva-csi
+    imageTag: 3.1.0
+  - path: csi-attacher.dockerfile
+    image: uap-sig-storage-csi-attacher
+    imageTag: v3.1.0
+  - path: csi-node-driver-registrar.dockerfile
+    image: uap-sig-storage-csi-node-driver-registrar
+    imageTag: v2.3.0
+  - path: csi-provisioner.dockerfile
+    image: uap-sig-storage-csi-provisioner
+    imageTag: v3.0.0
+  - path: csi-resizer.dockerfile
+    image: uap-sig-storage-csi-resizer
+    imageTag: v1.2.0
+  - path: livenessprobe.dockerfile
+    image: uap-sig-storage-livenessprobe
+    imageTag: v2.3.0
+  - path: provisioner-localpv.dockerfile
+    image: uap-openebs-provisioner-localpv
+    imageTag: 3.1.0
+  - path: linux-utils.dockerfile
+    image: uap-openebs-linux-utils
+    imageTag: 3.1.0
