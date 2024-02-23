@@ -1,0 +1,147 @@
+# helm install loki-stack http://helm.iottepa.cn/charts/loki-stack-2.5.1-rc1.tgz \
+#     --set grafana.enabled=true \
+#     --set loki.persistence.enabled=true \
+#     --set loki.persistence.size=100Gi \
+#     --set loki.config.limits_config.ingestion_rate_mb=32 \
+#     --set loki.config.limits_config.ingestion_burst_size_mb=64 \
+#     --set loki.securityContext.fsGroup=0 \
+#     --set loki.securityContext.runAsGroup=0 \
+#     --set loki.securityContext.runAsUser=0 \
+#     --set loki.securityContext.runAsNonRoot=false \
+#     --set prometheus.enabled=false \
+#     --set loki.config.limits_config.reject_old_samples_max_age=72h \
+#     --set loki.config.chunk_store_config.max_look_back_period=72h \
+#     --set loki.config.table_manager.retention_deletes_enabled=true \
+#     --set loki.config.table_manager.retention_period=72h \
+#     --set resources.requests.memory=500Mi \
+#     --set resources.limits.memory=2Gi
+
+loki:
+  enabled: true
+  image:
+    repository: docker.iottepa.cn:32011/uap-loki
+  persistence:
+    enabled: true
+    size: 100Gi
+  config:
+    chunk_store_config:
+      max_look_back_period: 48h
+    limits_config:
+      ingestion_burst_size_mb: 64
+      ingestion_rate_mb: 32
+      reject_old_samples_max_age: 48h
+      retention_period: 48h
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 48h
+  securityContext:
+    fsGroup: 0
+    runAsGroup: 0
+    runAsNonRoot: false
+    runAsUser: 0
+
+promtail:
+  enabled: true
+  image:
+    repository: docker.iottepa.cn:32011/uap-promtail
+  volumes:
+  - name: docker
+    hostPath:
+      path: /mnt/disks/docker/containers
+  - name: pods
+    hostPath:
+      path: /var/log/pods
+  volumeMounts:
+  - name: docker
+    mountPath: /mnt/disks/docker/containers
+    readOnly: true
+  - name: pods
+    mountPath: /var/log/pods
+    readOnly: true
+
+fluent-bit:
+  enabled: false
+
+grafana:
+  enabled: true
+  sidecar:
+    image:
+      repository: docker.iottepa.cn:32011/uap-k8s-sidecar
+    datasources:
+      enabled: true
+  image:
+    repository: docker.iottepa.cn:32011/uap-grafana
+    tag: 10.1.4
+  server:
+    domain: localhost
+    root_url: '%(protocol)s://%(domain)s/grafana'
+    serve_from_sub_path: true
+  testFramework:
+    image: docker.iottepa.cn:32011/uap-bats  
+  downloadDashboardsImage:
+    repository: docker.iottepa.cn:32011/uap-curl
+  initChownData:
+    image:
+      repository: docker.iottepa.cn:32011/uap-busybox
+  imageRenderer:
+    image:
+      repository: docker.iottepa.cn:32011/uap-grafana-image-renderer
+
+prometheus:
+  enabled: false
+
+filebeat:
+  enabled: false
+  filebeatConfig:
+    filebeat.yml: |
+      # logging.level: debug
+      filebeat.inputs:
+      - type: container
+        paths:
+          - /var/log/containers/*.log
+        processors:
+        - add_kubernetes_metadata:
+            host: ${NODE_NAME}
+            matchers:
+            - logs_path:
+                logs_path: "/var/log/containers/"
+      output.logstash:
+        hosts: ["logstash-loki:5044"]
+
+logstash:
+  enabled: false
+  image: grafana/logstash-output-loki
+  imageTag: 1.0.1
+  filters:
+    main: |-
+      filter {
+        if [kubernetes] {
+          mutate {
+            add_field => {
+              "container_name" => "%{[kubernetes][container][name]}"
+              "namespace" => "%{[kubernetes][namespace]}"
+              "pod" => "%{[kubernetes][pod][name]}"
+            }
+            replace => { "host" => "%{[kubernetes][node][name]}"}
+          }
+        }
+        mutate {
+          remove_field => ["tags"]
+        }
+      }
+  outputs:
+    main: |-
+      output {
+        loki {
+          url => "http://loki:3100/loki/api/v1/push"
+          #username => "test"
+          #password => "test"
+        }
+        # stdout { codec => rubydebug }
+      }
+
+resources:
+  limits:
+    memory: 2Gi
+  requests:
+    memory: 500Mi

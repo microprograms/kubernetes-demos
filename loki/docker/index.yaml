@@ -1,0 +1,25 @@
+dockerfiles:
+  - path: loki.dockerfile
+    image: uap-loki
+    imageTag: 2.4.1
+  - path: promtail.dockerfile
+    image: uap-promtail
+    imageTag: 2.1.0
+  - path: grafana.dockerfile
+    image: uap-grafana
+    imageTag: 10.1.4
+  - path: grafana-image-renderer.dockerfile
+    image: uap-grafana-image-renderer
+    imageTag: latest
+  - path: curl.dockerfile
+    image: uap-curl
+    imageTag: 7.73.0
+  - path: busybox.dockerfile
+    image: uap-busybox
+    imageTag: 1.31.1
+  - path: bats.dockerfile
+    image: uap-bats
+    imageTag: v1.1.0
+  - path: k8s-sidecar.dockerfile
+    image: uap-k8s-sidecar
+    imageTag: 1.12.3
