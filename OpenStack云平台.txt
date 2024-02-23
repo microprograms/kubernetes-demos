@@ -1,0 +1,162 @@
+sudo hostnamectl set-hostname openstack-standalone-node
+sudo nmcli con mod ens224 ipv4.method disabled
+sudo systemctl stop firewalld
+sudo systemctl disable firewalld
+sudo sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
+sudo timedatectl set-timezone Asia/Shanghai
+sudo reboot
+
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo dnf install docker-ce
+sudo cat > /tmp/daemon.json <<EOF
+{
+  "oom-score-adjust": -1000,
+  "data-root": "/home/cloud/docker",
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "500m",
+    "max-file": "3"
+  }
+}
+EOF
+sudo mkdir -p /etc/docker
+sudo mv /tmp/daemon.json /etc/docker
+sudo systemctl enable docker
+sudo systemctl start docker
+
+sudo fdisk /dev/sda
+sudo pvcreate /dev/sda1
+sudo vgcreate -f cinder-volumes /dev/sda1
+sudo reboot
+
+sudo dnf install git python3-devel libffi-devel gcc openssl-devel python3-libselinux
+python3 -m venv /home/cloud/venv
+source /home/cloud/venv/bin/activate
+pip install -U pip
+pip install 'ansible-core>=2.14,<2.16'
+pip install git+https://opendev.org/openstack/kolla-ansible@master
+sudo mkdir -p /etc/kolla
+sudo chown $USER:$USER /etc/kolla
+cp -r /home/cloud/venv/share/kolla-ansible/etc_examples/kolla/* /etc/kolla
+cp /home/cloud/venv/share/kolla-ansible/ansible/inventory/all-in-one /home/cloud
+kolla-ansible install-deps
+kolla-genpwd
+
+sudo cat > /tmp/ansible.cfg <<EOF
+[defaults]
+host_key_checking=False
+pipelining=True
+forks=100
+EOF
+sudo mkdir -p /etc/ansible
+sudo mv /tmp/ansible.cfg /etc/ansible
+
+sudo cp /etc/kolla/globals.yml /etc/kolla/globals.yml.bak
+sudo cat >> /etc/kolla/globals.yml <<EOF
+###############
+# Custom values
+###############
+kolla_base_distro: "rocky"
+network_interface: "ens192"
+neutron_external_interface: "ens224"
+kolla_internal_vip_address: "172.18.7.129"
+enable_openstack_core: "yes"
+enable_haproxy: "no"
+enable_cinder: "yes"
+enable_cinder_backend_lvm: "yes"
+enable_magnum: "yes"
+EOF
+
+kolla-ansible -i /home/cloud/all-in-one bootstrap-servers
+kolla-ansible -i /home/cloud/all-in-one prechecks
+kolla-ansible -i /home/cloud/all-in-one deploy
+
+pip install python-openstackclient -c https://releases.openstack.org/constraints/upper/master
+kolla-ansible post-deploy
+cp /etc/kolla/clouds.yaml /etc/openstack
+
+openstack flavor create --id 1 --ram 512 --disk 1 --vcpus 1 m1.tiny
+openstack flavor create --id 2 --ram 2048 --disk 20 --vcpus 1 m1.small
+openstack flavor create --id 3 --ram 4096 --disk 40 --vcpus 2 m1.medium
+openstack flavor create --id 4 --ram 8192 --disk 80 --vcpus 4 m1.large
+openstack flavor create --id 5 --ram 16384 --disk 160 --vcpus 8 m1.xlarge
+
+openstack flavor create --id 6 --ram 32768 --disk 500 --vcpus 16 uap.mini
+openstack flavor create --id 7 --ram 65536 --disk 500 --vcpus 16 uap.standard
+
+source /home/cloud/venv/bin/activate
+source /etc/kolla/admin-openrc.sh
+openstack image create --disk-format qcow2 --public \
+    --property os_type=linux --file /home/cloud/bionic-server-cloudimg-amd64.img 'Ubuntu 18.04 LTS (Bionic Beaver)'
+openstack image create --disk-format qcow2 --public \
+    --property os_type=linux --file /home/cloud/CentOS-8-GenericCloud-8.4.2105-20210603.0.x86_64.qcow2 'CentOS-8-GenericCloud-8.4.2105'
+openstack image create --disk-format qcow2 --public \
+    --property os_type=windows --file /home/cloud/windows_server_2012_r2_standard_eval_kvm_20170321.qcow2 'Windows Server 2012 R2 Std Eval'
+
+openstack image create --disk-format iso --public \
+    --property os_type=linux --file Rocky-9.3-x86_64-minimal.iso 'Rocky-9.3-x86_64-minimal'
+cinder upload-to-image --disk-format qcow2 --visibility public \
+    6d53cf66-f42d-4de5-ab40-8fff40ddbcf5 'Rocky-9.3-x86_64-minimal'
+
+openstack image create --disk-format iso --public \
+    --property os_type=linux --file openEuler-22.03-LTS-SP2-x86_64-dvd.iso 'OpenEuler-22.03-LTS-SP2'
+cinder upload-to-image --disk-format qcow2 --visibility public \
+    72e9b418-1891-46d8-ba6a-d663bfd9bd64 'OpenEuler-22.03-LTS-SP2'
+
+openstack image create --disk-format iso --public \
+    --property os_type=linux --file Kylin-Server-V10-Host-Release-20230925-X86_64.iso 'Kylin-Server-V10-Host-Release-20230925'
+cinder upload-to-image --disk-format qcow2 --visibility public \
+    47d1e9b9-eae6-4627-84d9-cf3c59b74ea4 'Kylin-Server-V10-Host-Release-20230925'
+
+scp /f/java/kylin_project_script/java/helm /f/java/kylin_project_script/java/etcd /f/java/kylin_project_script/java/etcdctl root@172.18.7.139:/root
+scp -r /f/java/kylin_project_script/java/k3s/ root@172.18.7.139:/root
+scp ~/Downloads/cloud-utils-growpart-0.29-5.el7.noarch.rpm root@172.18.7.139:/root
+scp ~/Downloads/sshpass-1.06-1.el7.x86_64.rpm root@172.18.7.139:/root
+
+sudo systemctl disable firewalld
+sudo systemctl stop firewalld
+
+sudo dnf install docker -y
+sudo dnf install glusterfs-server -y
+sudo dnf install keepalived -y
+
+sudo mv helm /usr/local/bin/
+sudo mv etcd /usr/local/bin/
+sudo mv etcdctl /usr/local/bin/
+
+sudo chmod +x /usr/local/bin/helm
+sudo chmod +x /usr/local/bin/etcd
+sudo chmod +x /usr/local/bin/etcdctl
+
+sudo dnf install tree -y
+sudo dnf install dos2unix -y
+sudo dnf install jq -y
+
+sudo mv /root/k3s/ /opt/
+dos2unix /opt/k3s/*.sh
+dos2unix /opt/k3s/update/*.sh
+dos2unix /opt/k3s/utils/*.sh
+dos2unix /opt/k3s/utils/coredns/*.sh
+dos2unix /opt/k3s/utils/etcd/host/*.sh
+dos2unix /opt/k3s/utils/gluster/*.sh
+dos2unix /opt/k3s/utils/gluster/host/*.sh
+dos2unix /opt/k3s/utils/local-storage/*.sh
+dos2unix /opt/k3s/vendor/*.sh
+
+sudo dnf install cloud-init -y
+sudo dnf install qemu-guest-agent -y
+sudo rpm -ivh /root/cloud-utils-growpart-0.29-5.el7.noarch.rpm
+sudo rm /root/cloud-utils-growpart-0.29-5.el7.noarch.rpm
+sudo rpm -ivh /root/sshpass-1.06-1.el7.x86_64.rpm
+sudo rm /root/sshpass-1.06-1.el7.x86_64.rpm
+
+cinder upload-to-image --disk-format qcow2 --visibility public \
+    119ef3fa-2448-4254-b0eb-76bfed811109 'Uap Kylin Server V10 Host Release'
+
+ssh ubuntu@172.18.6.6
+sudo passwd ubuntu
+sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+
+ssh centos@172.18.6.235
+sudo passwd centos
+sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config
